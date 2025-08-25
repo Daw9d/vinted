@@ -1,53 +1,46 @@
 import os
 import time
-import requests
 import telebot
-import threading
 from flask import Flask
+from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID"))
-SEARCH_URLS = os.getenv("SEARCH_URLS", "").split(";")
+SEARCH_URLS = os.getenv("SEARCH_URLS", "").split(";")  # linki do Vinted
 
 bot = telebot.TeleBot(BOT_TOKEN)
-seen_ids = set()
+seen_titles = set()  # unikalne oferty
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/115.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-    "X-Requested-With": "XMLHttpRequest",
-}
-
-def check_vinted(send_all=False):
-    for url in SEARCH_URLS:
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            res.raise_for_status()
-            try:
-                data = res.json()
-                items = data.get("items", [])
-            except ValueError:
-                print(f"Błąd JSON przy URL {url}: {res.text[:200]}")
-                items = []
-
+def check_vinted():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        for url in SEARCH_URLS:
+            page.goto(url)
+            page.wait_for_selector(".feed-grid__item", timeout=10000)
+            items = page.query_selector_all(".feed-grid__item")
             for item in items:
-                if send_all or item["id"] not in seen_ids:
-                    seen_ids.add(item["id"])
-                    msg = f"🔎 {item['title']}\n💰 {item['price']['amount']} {item['price']['currency']}\n🔗 {item['url']}"
-                    bot.send_message(CHAT_ID, msg)
-        except requests.exceptions.RequestException as e:
-            print(f"Błąd HTTP przy URL {url}: {e}")
-        except Exception as e:
-            print(f"Inny błąd przy URL {url}: {e}")
+                title_elem = item.query_selector(".feed-grid__item-title")
+                price_elem = item.query_selector(".feed-grid__item-price")
+                link_elem = item.query_selector("a[href]")
 
-# 🔹 Test – przy starcie wysyła wszystkie aktualne oferty
-check_vinted(send_all=True)
+                if title_elem and price_elem and link_elem:
+                    title = title_elem.inner_text().strip()
+                    price = price_elem.inner_text().strip()
+                    link = link_elem.get_attribute("href")
+                    if title not in seen_titles:
+                        seen_titles.add(title)
+                        msg = f"🔎 {title}\n💰 {price}\n🔗 https://www.vinted.pl{link}"
+                        bot.send_message(CHAT_ID, msg)
+        browser.close()
 
-# 🔹 Pętla w tle co 2 minuty sprawdzająca nowe ogłoszenia
+# wysyła wszystko od razu przy starcie
+check_vinted()
+
+# pętla co 2 minuty
+import threading
 def loop():
     while True:
         check_vinted()
