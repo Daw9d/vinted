@@ -9,7 +9,13 @@ app = Flask(__name__)
 # 🔧 KONFIGURACJA
 BOT_TOKEN = "8073820431:AAF6m55PBiI1haJPEqnHgVA1L7LDlmtDxVo"
 CHAT_ID = "7307787310"
-SEARCH_URL = "https://www.vinted.pl/api/v2/catalog/items?search_text=nike+air+force&order=newest_first"
+SEARCH_URLS = [
+    "https://www.vinted.pl/api/v2/catalog/items?search_text=lego+piraci+z+karaib%C3%B3w&brand_ids[]=89162&search_id=25841938583&order=newest_first",
+    "https://www.vinted.pl/api/v2/catalog/items?search_text=lego%20pirates%20of%20the%20Caribbean%20&search_id=17821250222&order=newest_first",
+    "https://www.vinted.pl/api/v2/catalog/items?search_text=4184%20lego&search_id=17628538338&order=newest_first",
+    "https://www.vinted.pl/api/v2/catalog/items?search_text=lego%20jack%20sparrow&search_id=20932423590&order=newest_first"
+]
+
 
 bot = telegram.Bot(token=BOT_TOKEN)
 seen_ids = set()
@@ -42,3 +48,4 @@ threading.Thread(target=loop, daemon=True).start()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
+
